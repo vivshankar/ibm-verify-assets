@@ -1,12 +1,12 @@
-# Protecting against phishing when using the OAuth 2.0 Device Authorization Grant Flow
+# Security best practices for deploying the OAuth 2.0 Device Flow with IBM Verify
 
 The OAuth 2.0 Device Authorization Grant Flow (or simply Device Flow) enables devices with no browser or limited input capability, such as smart devices like Amazon Echo, to obtain an access token, that can be used by the device to access protected resource APIs. This is commonly seen on apps on Apple TV, Android TV, Amazon Echo etc. where a user is shown a QR code or link and an optional one-time authorization code and the user logs in using a companion device, like a smart phone.
 
-The device that requires the token is called a consuming device and the one used by the user to authenticate and authorize the request is called an authorizing device. These terms will be used in this article.
+The device that requires the token is called a "consuming device" and the one used by the user to authenticate and authorize the request is called an "authorizing device". These terms will be used in this article.
 
 Depending on how the OAuth 2.0 client is configured, it can be prone to phishing attacks, as described in this article titled [OAuth’s Device Code Flow Abused in Phishing Attacks](https://www.secureworks.com/blog/oauths-device-code-flow-abused-in-phishing-attacks).
 
-IBM Verify offers mechanisms to mitigate this vector while using this flow. This article provides guidance on how you would do this.
+IBM Verify offers mechanisms to apply security best practices to protect this flow.
 
 ## About Device Flow
 
@@ -64,7 +64,7 @@ In the event that the `verification_uri_complete` is used, the user is not asked
 
 ## The attack
 
-With the use of a public OAuth 2.0 client, it is safe to assume the `client_id` has been stolen. Thus, the adversary can make the API call to the `device_authorization` endpoint to obtain a valid set of codes and the `verification_uri_complete`. Now consider that the adversary uses standard phishing techniques - a legitimate looking email etc. - to pass along the verification URI to the user. When the user completes the authorization flow, the adversary now has a legitimate access token that can be used to access protected resources.
+With the use of a public OAuth 2.0 client, it is safe to assume the `client_id` is known to the attacker. Thus, the adversary can make the API call to the `device_authorization` endpoint to obtain a valid set of codes and the `verification_uri_complete`. Now consider that the adversary uses standard phishing techniques - a legitimate looking email etc. - to pass along the verification URI to the user. When the user completes the authorization flow, the adversary now has a legitimate access token that can be used to access protected resources.
 
 Notice here that the user may use the strongest form of authentication and is still prone to this form of an attack.
 
@@ -78,7 +78,7 @@ Use a confidential client with a strong form of client authentication, such as `
 
 ![](client_auth_methods.png)
 
-However, while this should always be the recommended approach to take, there are cases where this may not be practical. For example - an app that is installed on end user devices, where packaging a secret, such as a private key is not practical unless a sophisticated registration process is possible for the app instance.
+However, while this should always be the recommended approach to take, there are cases where this may not be practical. For example - an app that is installed on end user devices, where packaging a secret, such as a private key is not practical unless a sophisticated app instance registration can be implemented.
 
 ### Add a consent page that provides additional context to the user
 
@@ -241,4 +241,4 @@ You can now repeat the device flow and you will notice the additional consent pa
 
 ## The wrap
 
-This article introduced some of the security implications of using the OAuth 2.0 Device Authorization Grant flow, in particular, with public clients. While the use of public clients may be unavoidable in certain situations, adding additional context for a user to make a decision helps reduce the chances of a successful phishing attack.
+This article introduced some of the security implications of using the OAuth 2.0 Device Authorization Grant flow, in particular, with public clients. While the use of public clients may be unavoidable in certain situations, adding additional context for a user to make a decision helps improve the security posture.
