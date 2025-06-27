@@ -1,18 +1,18 @@
 # Security best practices for deploying the OAuth 2.0 Device Flow with IBM Verify
 
-The OAuth 2.0 Device Authorization Grant Flow (or simply Device Flow) enables devices with no browser or limited input capability, such as smart devices like Amazon Echo, to obtain an access token, that can be used by the device to access protected resource APIs. This is commonly seen on apps on Apple TV, Android TV, Amazon Echo etc. where a user is shown a QR code or link and an optional one-time authorization code and the user logs in using a companion device, like a smart phone.
+The OAuth 2.0 Device Authorization Grant Flow (or simply Device Flow) enables devices with no browser or limited input capability, such as smart devices like Amazon Echo, to obtain an access token that can be used by the device to access protected resource APIs on behalf of a user. This is commonly seen on applications on Apple TV, Android TV, Amazon Echo and others where a user is shown a QR code or link including an optional one-time registration code. The user logs in using a companion device, like a smart phone or laptop.
 
-The device that requires the token is called a "consuming device" and the one used by the user to authenticate and authorize the request is called an "authorizing device". These terms will be used in this article.
+The device that requires the token is called a _consuming device_ and the one used by the user to authenticate and authorize the request is called an _authorizing device_. These terms will be used in this article.
 
 Depending on how the OAuth 2.0 client is configured, it can be prone to phishing attacks, as described in this article titled [OAuth’s Device Code Flow Abused in Phishing Attacks](https://www.secureworks.com/blog/oauths-device-code-flow-abused-in-phishing-attacks).
 
 IBM Verify offers mechanisms to apply security best practices to protect this flow.
 
-## About Device Flow
+## The Device Flow in IBM Verify
 
-IBM Verify allows clients to be configured without client secrets, i.e. they can be public clients with only a `client_id`. This is often used when the OAuth flow is initiated and completed on an untrusted front-end or is compiled into code that is distributed and hosted by various parties as part of another software product.
+IBM Verify allows clients to be configured without client secrets, i.e. they can be public clients with only a `client_id`. This is typically used when the OAuth flow is initiated and completed on an untrusted front-end (for example a browser-based single page application) or is compiled into code that is distributed and hosted by various parties as part of another software product (a mobile application or mobile SDK).
 
-The typical use of Device Flow begins with a call to `/oauth2/device_authorization` from the consuming device. Notice in this example that a public OAuth 2.0 client is used.
+The Device Flow begins with a call to `/oauth2/device_authorization` from the consuming device. Notice in this example that a public OAuth 2.0 client is used.
 
 ```curl
 curl 'https://abc.verify.ibm.com/oauth2/device_authorization' \
@@ -33,19 +33,19 @@ The response is as below:
 }
 ```
 
-The device keeps track of the `device_code` and displays the `user_code` and either the `verification_uri` or the `verification_uri_complete`. Note in the diagram below that the `verification_uri` has been shortened using a custom URL shortener.
+The device keeps track of the `device_code` and displays the `user_code` and either the `verification_uri` or the `verification_uri_complete`. Note in the diagram below that the `verification_uri` has been shortened using a custom URL shortener. The `verification_uri_complete` might also be shown as a QR code if the intent is for the user to scan it with a mobile phone and use their phone's browser to complete the next step.
 
 ![](device_display.png)
 
-When the user scans the QR code or browses to the link on a browser, the user is asked to enter the `user_code` value.
+When the user scans the QR code or browses to the link on a browser, the user is asked to enter the `user_code` value. It may be prefilled or the prompt skipped entirely when the QR encodes `verification_uri_complete` where the `user_code` is included as a query string parameter.
 
 ![](user_authorization_enter_user_code.png)
 
-Once the user enters the user code, the user is taken through a login process and authorizes the request to proceed. This process can include the use of phishing resistant authenticators like passkeys and include adaptive MFA policies, etc.
+Once the user enters the user code, the user is taken through a login process and authorizes the request to proceed. Authentication can include the use of phishing resistant methods like passkeys and include adaptive MFA policies. Note that while user authentication on their browser can (and is recommended to) be phishing resistant, this does not make the entire device code flow phishing resistant as there is no guarantee that the `user_code` isn't that of a bad actor.
 
 ![](user_sign_in_page.png)
 
-During this process on the device, it would usually poll for completion by invoking the token endpoint. 
+While the user is busy on their `authorization device` completeing this process, the `consuming device` will poll for completion by invoking the token endpoint:
 
 ```curl
 curl 'https://abc.verify.ibm.com/oauth2/token' \
@@ -56,33 +56,23 @@ curl 'https://abc.verify.ibm.com/oauth2/token' \
 ```
 > 📘 Note
 > 
-> While the example above shows the use of a public client, IBM Verify offers multiple client authentication methods, including the use of client secrets, JWTs, client certifications etc. The public client is used here to demonstrate the phishing attack, which is the purpose of this article.
+> While the example above shows the use of a public client, IBM Verify offers multiple client authentication methods, including the use of client secrets, JWTs, client certifications etc. The public client is used here to demonstrate and describe best practices related to the phishing attack, which is the purpose of this article.
 
 When the user completes the sign in process, the token call returns a valid access token that can then be used to call protected APIs from the consuming device.
 
-In the event that the `verification_uri_complete` is used, the user is not asked to enter the user code. The user simply completes authentication.
-
 ## The attack
 
-With the use of a public OAuth 2.0 client, it is safe to assume the `client_id` is known to the attacker. Thus, the adversary can make the API call to the `device_authorization` endpoint to obtain a valid set of codes and the `verification_uri_complete`. Now consider that the adversary uses standard phishing techniques - a legitimate looking email etc. - to pass along the verification URI to the user. When the user completes the authorization flow, the adversary now has a legitimate access token that can be used to access protected resources.
+With the use of a public OAuth 2.0 client, it is safe to assume the `client_id` is known to the attacker. The adversary can make the API call to the `device_authorization` endpoint to obtain a valid set of device and user codes, including the `verification_uri_complete`. The adversary now uses standard phishing techniques - a legitimate looking email etc. - to convince the victim to visit the attacker's `verification_uri_complete` URI and complete authorization. When the victim does this, the next poll to the token endpoint by the adversary results in legitimate access/refresh tokens that can be used to access protected resources on behalf of the victim.
 
-Notice here that the user may use the strongest form of authentication and is still prone to this form of an attack.
+Notice here that the user may use the strongest form of authentication on their `authorizing device` and is still prone to this form of attack.
 
 ## Mitigations
 
-There are different ways to protect the user from this form of an attack.
-
-### Use a confidential OAuth 2.0 client
-
-Use a confidential client with a strong form of client authentication, such as `private_key_jwt` or `tls_client_auth`. IBM Verify offers the full complement of options supported by the standards.
-
-![](client_auth_methods.png)
-
-However, while this should always be the recommended approach to take, there are cases where this may not be practical. For example - an app that is installed on end user devices, where packaging a secret, such as a private key is not practical unless a sophisticated app instance registration can be implemented.
+There are several strategies that may be employed to help mitigate this form of an attack. Many of these are discussed in detail in [Cross-Device Flows: Security Best Current Practice](https://datatracker.ietf.org/doc/draft-ietf-oauth-cross-device-security/) (draft 10 at time of writing). In this section we are going to highlight how IBM Verify may be configured to implement best practices for User Experience (secton 6.1.14 of draft 10), in particular for displaying context to the user during authorization consent.
 
 ### Add a consent page that provides additional context to the user
 
-The device flow standard recommends the following.
+The [device flow standard](https://www.rfc-editor.org/rfc/rfc8628.html#section-5.4) recommends the following.
 
 ![](rfc_phishing_snippet.png)
 
